@@ -12,7 +12,7 @@
   --bg:#e6ecef; --panel:#f7f9fa; --ink:#1d2a33; --muted:#5b6b75; --line:#cdd7dc;
   --steel:#2f5d9e; --beam:#e8691f;
   --meat:#c4534a; --special:#7a3b8f; --produce:#4c9a5a; --chilled:#4a84b5; --chips:#d9a72f; --spare:#9aa6ad;
-  --focus:#e8691f;
+  --focus:#e8691f; --warn:#b23b2e;
   --body:"Barlow", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --cond:"Barlow Condensed", "Arial Narrow", "Segoe UI", sans-serif;
   box-sizing:border-box;
@@ -21,10 +21,10 @@
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --bg:#121a20; --panel:#1a242b; --ink:#e3eaee; --muted:#9aabb5; --line:#2c3a43;
+    --bg:#121a20; --panel:#1a242b; --ink:#e3eaee; --muted:#9aabb5; --line:#2c3a43; --warn:#f08a7c;
   }
 }
-:root[data-theme="dark"]{ --bg:#121a20; --panel:#1a242b; --ink:#e3eaee; --muted:#9aabb5; --line:#2c3a43; }
+:root[data-theme="dark"]{ --bg:#121a20; --panel:#1a242b; --ink:#e3eaee; --muted:#9aabb5; --line:#2c3a43; --warn:#f08a7c; }
 *,*::before,*::after{box-sizing:inherit}
 html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
 body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;overflow:hidden}
@@ -71,6 +71,36 @@ summary{cursor:pointer;font-family:var(--cond);font-weight:600;font-size:17px}
 #views{position:absolute;top:calc(12px + env(safe-area-inset-top,0px));left:12px;display:flex;gap:6px}
 #loading{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted)}
 #toggle{display:none}
+.btn.toggle[aria-pressed="true"]{background:var(--beam);border-color:var(--beam);color:#fff}
+.btn:disabled{opacity:.45;cursor:default}
+#editTools{display:none}
+body.editing #editTools{display:block}
+#clashes{margin:10px 0 0;font-size:13px;color:var(--warn)}
+#clashes:empty{display:none}
+.log{list-style:none;padding:0;margin:6px 0 0;font-size:13px;color:var(--muted);max-height:170px;overflow:auto}
+.log li{padding:4px 0;border-bottom:1px solid var(--line)}
+.ed{display:grid;gap:8px;margin:10px 0 4px;padding:10px;border:1px dashed var(--beam);border-radius:6px}
+.ed label{display:grid;gap:3px;font-size:12.5px;color:var(--muted)}
+.ed input,.ed select,#objbar input,#detail li select{font:inherit;font-size:13.5px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);width:100%}
+#detail li.edit{flex-wrap:wrap;gap:4px 6px}
+#detail li.edit .pn{flex:1 1 160px}
+#detail li.edit .ps{flex:0 0 76px}
+#detail li.edit input{font:inherit;font-size:13px;padding:5px 7px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);width:100%}
+#detail li.edit .pm{flex:1 1 140px}
+.btn.del{color:var(--warn);border-color:var(--warn);padding:4px 9px;font-size:12.5px}
+.addp{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.addp input{font:inherit;font-size:13px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
+.addp input:first-child{flex:1 1 160px}.addp input:nth-child(2){flex:0 0 76px}
+.removed li{display:flex;justify-content:space-between;align-items:center;gap:8px}
+#detail li.edit select{font-size:12.5px;padding:4px 6px}
+#objbar{position:absolute;left:50%;transform:translateX(-50%);top:calc(58px + env(safe-area-inset-top,0px));background:var(--panel);border:2px solid var(--beam);border-radius:10px;padding:10px 12px;display:none;width:max-content;max-width:min(580px,94%);box-shadow:0 6px 24px rgba(10,30,40,.18)}
+#objbar.on{display:block}
+#objName{font-family:var(--cond);font-weight:700;font-size:18px;margin:0 0 6px}
+#objbar .row{margin:0;align-items:end}
+#objbar label{display:grid;gap:2px;font-size:12px;color:var(--muted);width:104px}
+#objWarn{margin:6px 0 0;font-size:13px;color:var(--warn)}
+#objWarn:empty{display:none}
+body.editing #c{cursor:crosshair}
 @media (max-width:760px){
   #app{grid-template-columns:1fr;grid-template-rows:1fr auto}
   #panel{order:2;border-right:0;border-top:1px solid var(--line);max-height:46vh}
@@ -88,7 +118,7 @@ summary{cursor:pointer;font-family:var(--cond);font-weight:600;font-size:17px}
     <header>
       <button class="btn" id="toggle" aria-expanded="true">Hide</button>
       <h1>Chilled store bin map</h1>
-      <p class="sub">66 fixed bins, 231 products. Meat racks: pick from the floor, replenish from the beam above. Prototype for the warehouse team to check.</p>
+      <p class="sub">66 fixed bins, <span id="nProds">231</span> products. Meat racks: pick from the floor, replenish from the beam above. Prototype for the warehouse team to check and rearrange.</p>
     </header>
     <div class="section">
       <h2>Find a product or bin</h2>
@@ -101,6 +131,27 @@ summary{cursor:pointer;font-family:var(--cond);font-weight:600;font-size:17px}
       <div class="row">
         <button class="btn primary" id="tourBtn">Walk the picking route</button>
         <button class="btn" id="namesBtn" aria-pressed="true">Product names on</button>
+        <button class="btn" id="routeBtn" aria-pressed="true">Route line on</button>
+      </div>
+    </div>
+    <div class="section">
+      <h2>Edit the map</h2>
+      <button class="btn toggle" id="editBtn" aria-pressed="false">Edit layout: off</button>
+      <div id="editTools">
+        <p class="sub" style="margin-top:8px">Drag a rack, floor lane, cage or door to move it, or click it to rotate it and type an exact position. Click a bin to rename it, change its category, swap it with another bin, or edit, move, add and delete its products. Deleted products can be put back. Changes save in this browser; download the layout file to share them.</p>
+        <div class="row">
+          <button class="btn" id="undoBtn" disabled>Undo</button>
+          <button class="btn" id="resetBtn">Reset to original</button>
+        </div>
+        <div class="row">
+          <button class="btn" id="saveBtn">Download layout file</button>
+          <button class="btn" id="loadBtn">Open layout file</button>
+          <button class="btn" id="csvBtn">Download bin list (CSV)</button>
+          <input type="file" id="loadFile" accept=".json,application/json" hidden>
+        </div>
+        <p id="clashes" role="status"></p>
+        <details style="margin-top:8px"><summary>Deleted products (<span id="remCount">0</span>)</summary><ul class="log removed" id="removed"></ul></details>
+        <details style="margin-top:8px"><summary>Changes made (<span id="logCount">0</span>)</summary><ul class="log" id="log"></ul></details>
       </div>
     </div>
     <div class="section"><details><summary>Meat moved out of the chiller (80)</summary><p class="sub" style="margin-top:6px">Lines not on the chiller list (freezer or not stocked here). Tell me if any of these should stay.</p><ul id="movedOut" class="moved"></ul></details></div>
@@ -112,6 +163,17 @@ summary{cursor:pointer;font-family:var(--cond);font-weight:600;font-size:17px}
       <button class="btn" data-view="over">Overview</button>
       <button class="btn" data-view="top">Plan view</button>
       <button class="btn" data-view="door">From the door</button>
+    </div>
+    <div id="objbar" role="region" aria-label="Selected item">
+      <p id="objName"></p>
+      <div class="row">
+        <label>From west wall (m)<input type="number" id="objX" step="0.1"></label>
+        <label>From door wall (m)<input type="number" id="objZ" step="0.1"></label>
+        <button class="btn" id="rotL" aria-label="Rotate 90 degrees anticlockwise">&#8634; 90&deg;</button>
+        <button class="btn" id="rotR" aria-label="Rotate 90 degrees clockwise">&#8635; 90&deg;</button>
+        <button class="btn primary" id="objDone">Done</button>
+      </div>
+      <p id="objWarn"></p>
     </div>
     <div id="hint">Drag to turn. Scroll or pinch to zoom. Right-drag or two fingers to move.</div>
     <div id="tourbar" role="region" aria-live="polite">
@@ -198,6 +260,21 @@ function textPlane(lines,w,h,opts={}){
 }
 function orient(mesh,face){ mesh.lookAt(mesh.position.clone().add(face)); }
 
+/* ---------- movable items: everything one capture() call adds to the scene becomes one group, pivoting on its centre ---------- */
+const MOV={}; const MOV_ORDER=[];
+function capture(id,label,fn){
+  const before=new Set(scene.children); fn();
+  const added=scene.children.filter(c=>!before.has(c));
+  const bb=new THREE.Box3(); added.forEach(o=>bb.expandByObject(o));
+  const cx=Math.round((bb.min.x+bb.max.x)*50)/100, cz=Math.round((bb.min.z+bb.max.z)*50)/100;
+  const g=new THREE.Group(); g.position.set(cx,0,cz);
+  added.forEach(o=>{ scene.remove(o); o.position.x-=cx; o.position.z-=cz; g.add(o); });
+  g.userData.mov=id; scene.add(g); g.updateMatrixWorld(true);
+  MOV[id]={g,label,home:{x:cx,z:cz,r:0}}; MOV_ORDER.push(id); return g;
+}
+/* a point given in the original map, carried along with wherever that item has been moved */
+function mapMov(id,v){ const m=MOV[id]; if(!m) return v.clone(); m.g.updateMatrixWorld(true); return m.g.localToWorld(new THREE.Vector3(v.x-m.home.x,v.y,v.z-m.home.z)); }
+
 /* ---------- room shell ---------- */
 const floor=new THREE.Mesh(new THREE.PlaneGeometry(ROOM.w,ROOM.d),M(0x8f9a9f));
 floor.rotation.x=-Math.PI/2; floor.position.set(ROOM.w/2,0,ROOM.d/2); scene.add(floor);
@@ -209,6 +286,7 @@ const wallMat=M(0xf2f4f5,{transparent:true,opacity:0.32,side:THREE.DoubleSide,de
 });
 // floor walkway outline
 const walk=new THREE.Mesh(new THREE.PlaneGeometry(8.6,7.6),M(0xa6b1b6)); walk.rotation.x=-Math.PI/2; walk.position.set(5.9,0.005,5.5); scene.add(walk);
+capture("door","Entrance door",()=>{
 // entrance: strip-curtain door on the north wall, in the corner past the end of Rack C
 const DOOR={x0:9.85,x1:11.85};
 for(let i=0;i<10;i++){ const s=new THREE.Mesh(new THREE.PlaneGeometry(0.19,2.6),M(0xcfe3ea,{transparent:true,opacity:0.55,side:THREE.DoubleSide})); s.position.set(DOOR.x0+0.1+i*0.2,1.3,0.02); scene.add(s); }
@@ -222,14 +300,15 @@ sDoor.position.set((DOOR.x0+DOOR.x1)/2,3.0,0.05); orient(sDoor,new THREE.Vector3
   scene.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts),yel));
   const t=textPlane([{t:"Keep clear",size:.7}],1.2,0.3,{bg:"#f2c200",fg:"#1d2a33",center:true}); t.rotation.x=-Math.PI/2; t.position.set(cx,0.02,1.85); scene.add(t);
   const ar=new THREE.Mesh(new THREE.ConeGeometry(0.22,0.5,3),M(0xf2c200)); ar.rotation.x=Math.PI/2; ar.position.set(cx,0.03,2.45); scene.add(ar); }
+});
 // STOP door south wall (unchanged)
-box(1.3,2.3,0.05,M(0xdfe3e5),10.35,1.15,10.97);
-const stop=textPlane([{t:"STOP door",size:.7}],0.9,0.3,{bg:"#c0392b",fg:"#fff",center:true}); stop.position.set(10.35,1.6,10.93); orient(stop,new THREE.Vector3(0,0,-1)); scene.add(stop);
+capture("stop","STOP door",()=>{ box(1.3,2.3,0.05,M(0xdfe3e5),10.35,1.15,10.97);
+const stop=textPlane([{t:"STOP door",size:.7}],0.9,0.3,{bg:"#c0392b",fg:"#fff",center:true}); stop.position.set(10.35,1.6,10.93); orient(stop,new THREE.Vector3(0,0,-1)); scene.add(stop); });
 // cages
 function cage(x,z,w,d,label,face){ const g=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(w,1.6,d)),new THREE.LineBasicMaterial({color:0x8a8f92})); g.position.set(x,0.8,z); scene.add(g);
   const t=textPlane([{t:label,size:.7}],w*0.95,0.26,{bg:"#ffffff",center:true}); t.position.set(x+face.x*(w/2+0.01),1.3,z+face.z*(d/2+0.01)); orient(t,face); scene.add(t); }
-cage(11.45,3.0,0.9,0.9,"Chilled returns",new THREE.Vector3(-1,0,0));
-cage(11.45,9.75,0.9,0.9,"Staff purchase",new THREE.Vector3(-1,0,0));
+capture("cageReturns","Chilled returns cage",()=>cage(11.45,3.0,0.9,0.9,"Chilled returns",new THREE.Vector3(-1,0,0)));
+capture("cageStaff","Staff purchase cage",()=>cage(11.45,9.75,0.9,0.9,"Staff purchase",new THREE.Vector3(-1,0,0)));
 // evaporators on the west wall
 [3.2,7.6].forEach(z=>{ box(0.5,0.45,2.0,M(0xf4f4f4),0.3,3.35,z); for(let i=-1;i<=1;i++){ const f=new THREE.Mesh(new THREE.CircleGeometry(0.15,20),M(0x2a2a2a)); f.position.set(0.56,3.35,z+i*0.6); f.rotation.y=Math.PI/2; scene.add(f);} });
 
@@ -237,7 +316,7 @@ cage(11.45,9.75,0.9,0.9,"Staff purchase",new THREE.Vector3(-1,0,0));
 // Rack A: one pallet per specialised line, a marked gap between pallets
 
 const pickables=[]; const binObj={};
-const groupMeshes={}; GROUPS.forEach(g=>groupMeshes[g.k]=[]);
+const groupOn={}; GROUPS.forEach(g=>groupOn[g.k]=true);
 const nameMeshes=[];
 const byCode={}; BINS.forEach(b=>byCode[b.c]=b);
 
@@ -310,30 +389,24 @@ function nameTag(pos,face,text,w){
   t.position.copy(pos); orient(t,face); scene.add(t); nameMeshes.push(t); return t;
 }
 function makeBin(R,key,b,ac,sw,h,clear){
-  const col=b.vg==="Spare"?null:gcol(b.vg);
-  let st={grp:new THREE.Group(),meshes:[]};
-  if(col){ st=stackOf(R,b,ac,sw,h,clear,col); }
+  // every bin gets goods, a dashed outline and a name tag; which ones show depends on what is in the bin (see refreshVis)
+  const st=stackOf(R,b,ac,sw,h,clear,gcol(b.vg));
   // invisible hit box over the whole bin
   const hb=new THREE.Mesh(new THREE.BoxGeometry(sw-0.02,Math.max(clear,0.3),R.depth),new THREE.MeshBasicMaterial({visible:false}));
   hb.position.copy(R.map(ac,h+Math.max(clear,0.3)/2,R.depth/2)); orient(hb,R.face); hb.userData.code=b.c; scene.add(hb); pickables.push(hb);
-  if(!col){ const g=new THREE.LineSegments(new THREE.EdgesGeometry(hb.geometry),new THREE.LineDashedMaterial({color:0x7d8a91,dashSize:0.1,gapSize:0.07})); g.position.copy(hb.position); g.quaternion.copy(hb.quaternion); g.computeLineDistances(); scene.add(g); }
+  const dash=new THREE.LineSegments(new THREE.EdgesGeometry(hb.geometry),new THREE.LineDashedMaterial({color:0x7d8a91,dashSize:0.1,gapSize:0.07})); dash.position.copy(hb.position); dash.quaternion.copy(hb.quaternion); dash.computeLineDistances(); scene.add(dash);
   // label: on the beam the goods sit on; floor bins get a floor-level sign
   const ly = b.l===1 ? 0.12 : h-0.06;
   const lab=binLabel(R,b,ac,sw,ly);
-  let tag=null;
-  if(b.p.length||b.vg!=="Spare"){
-    const short=b.n.replace(/^Reserve: /,"Reserve: ");
-    const ty = b.t==="Shelf slot" ? h+0.13 : h+0.14+goodsH(clear)/2;
-    tag=nameTag(R.map(ac,ty,R.depth+0.06),R.face,short,Math.min(sw-0.04,b.t==="Shelf slot"?0.52:1.25));
-  }
-  groupMeshes[b.vg]?.push(st.grp,lab,...(tag?[tag]:[]));
-  binObj[b.c]={hit:hb,stack:st,label:lab,tag,R,center:hb.position.clone()};
+  const ty = b.t==="Shelf slot" ? h+0.13 : h+0.14+goodsH(clear)/2;
+  const tag=nameTag(R.map(ac,ty,R.depth+0.06),R.face,b.n,Math.min(sw-0.04,b.t==="Shelf slot"?0.52:1.25));
+  binObj[b.c]={hit:hb,stack:st,label:lab,tag,dash,R,drawn:b.vg+"|"+b.n};
 }
-Object.keys(RACKS).forEach(buildRack);
+Object.keys(RACKS).forEach(k=>capture("rack"+k,RACKS[k].name,()=>buildRack(k)));
 
 // floor lanes on the west wall
 const laneR={map:(a,y,o)=>new THREE.Vector3(0.15+o,y,8.6-a),face:new THREE.Vector3(1,0,0),depth:1.25};
-BINS.filter(b=>b.r==="F").forEach(b=>{
+BINS.filter(b=>b.r==="F").forEach(b=>capture("lane"+b.b,"Floor lane F-"+String(b.b).padStart(2,"0"),()=>{
   const [z0,z1]=LANES.z[b.b-1]; const len=z1-z0, ac=8.6-(z0+z1)/2;
   // floor marking
   const mark=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(laneR.depth,0.01,len-0.08)),new THREE.LineBasicMaterial({color:0xe3b21f}));
@@ -345,11 +418,10 @@ BINS.filter(b=>b.r==="F").forEach(b=>{
   const hb=new THREE.Mesh(new THREE.BoxGeometry(1.25,1.0,len-0.1),new THREE.MeshBasicMaterial({visible:false})); hb.position.set(0.78,0.5,(z0+z1)/2); hb.userData.code=b.c; scene.add(hb); pickables.push(hb);
   const lab=textPlane([{t:b.c,size:.62,weight:700}],0.6,0.13,{bg:"#ffffff",bar:col}); lab.position.set(0.06,1.55,(z0+z1)/2); orient(lab,laneR.face); scene.add(lab);
   const tag=nameTag(new THREE.Vector3(0.06,1.78,(z0+z1)/2),laneR.face,b.n,Math.min(len-0.1,1.3));
-  groupMeshes[b.vg].push(grp,lab,tag);
-  binObj[b.c]={hit:hb,stack:{grp,meshes:grp.children.filter(c=>c.isMesh)},label:lab,tag,R:laneR,center:hb.position.clone()};
-});
-const fSign=textPlane([{t:"Floor lanes F: produce",size:.75}],2.6,0.42,{bg:"#1f4e5a",fg:"#fff",center:true});
-fSign.position.set(0.08,2.45,5.0); orient(fSign,new THREE.Vector3(1,0,0)); scene.add(fSign);
+  binObj[b.c]={hit:hb,stack:{grp,meshes:grp.children.filter(c=>c.isMesh)},label:lab,tag,R:laneR,drawn:b.vg+"|"+b.n};
+}));
+capture("fsign","Floor lanes sign",()=>{ const fSign=textPlane([{t:"Floor lanes F: produce",size:.75}],2.6,0.42,{bg:"#1f4e5a",fg:"#fff",center:true});
+fSign.position.set(0.08,2.45,5.0); orient(fSign,new THREE.Vector3(1,0,0)); scene.add(fSign); });
 
 // picking route line
 const routePts=[[10.85,1.7],[10.2,2.6],[10.2,9.0],[2.0,9.0],[2.0,2.1],[9.6,2.1],[10.85,1.7]].map(([x,z])=>new THREE.Vector3(x,0.02,z));
@@ -363,12 +435,15 @@ const selFill=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshBasicMat
 selFill.visible=false; scene.add(selFill);
 let selected=null;
 function select(code,fly){
-  const o=binObj[code]; if(!o) return; selected=code;
-  const g=o.hit.geometry.parameters;
-  [sel,selFill].forEach(m=>{ m.visible=true; m.position.copy(o.hit.position); m.quaternion.copy(o.hit.quaternion); m.scale.set(g.width+0.06,g.height+0.06,g.depth+0.06); });
+  const o=binObj[code]; if(!o) return; selected=code; placeSel();
   showDetail(byCode[code]);
-  if(fly){ const face=o.R.face; const c=o.center.clone(); flyTo(c.clone().add(face.clone().multiplyScalar(3.2)).add(new THREE.Vector3(0,0.9,0)),c); }
+  if(fly){ const face=faceOf(o); const c=centerOf(o); flyTo(c.clone().add(face.clone().multiplyScalar(3.2)).add(new THREE.Vector3(0,0.9,0)),c); }
 }
+function placeSel(){ const o=binObj[selected]; if(!o) return; const g=o.hit.geometry.parameters;
+  const p=o.hit.getWorldPosition(new THREE.Vector3()), q=o.hit.getWorldQuaternion(new THREE.Quaternion());
+  [sel,selFill].forEach(m=>{ m.visible=true; m.position.copy(p); m.quaternion.copy(q); m.scale.set(g.width+0.06,g.height+0.06,g.depth+0.06); }); }
+const centerOf=o=>o.hit.getWorldPosition(new THREE.Vector3());
+const faceOf=o=>o.R.face.clone().applyQuaternion(o.hit.parent.getWorldQuaternion(new THREE.Quaternion()));
 
 /* ---------- detail panel ---------- */
 const LVL=b=>b.l===1?"floor":`level ${b.l}`;
@@ -379,23 +454,49 @@ function where(b){
   return `${RACKS[b.r].name}, bay ${String(b.b).padStart(2,"0")}, ${LVL(b)} (${b.h.toLowerCase()})${pos}`;
 }
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function binOptions(except){ return BINS.filter(x=>x.c!==except).map(x=>`<option value="${esc(x.c)}">${esc(x.c)}: ${esc(x.n)}</option>`).join(""); }
 function showDetail(b){
   const d=$("#detail");
   let h=`<p class="code">${esc(b.c)}</p><p class="where">${esc(where(b))}</p>`;
   h+=`<span class="tag" style="background:${gcol(b.vg)}">${esc(b.g==="Reserve / spare"?(b.vg==="Spare"?"Spare":"Reserve pallets"):b.g)}</span>`;
   h+=`<p class="what">${esc(b.n)}</p>`;
+  if(editMode){
+    h+=`<div class="ed"><label>Bin name<input id="eName" value="${esc(b.n)}"></label>
+      <label>Category<select id="eCat">${GROUPS.map(g=>`<option value="${esc(g.k)}"${g.k===b.vg?" selected":""}>${esc(g.label)}</option>`).join("")}</select></label>
+      <label>Swap everything in this bin with<select id="eSwap"><option value="">Choose a bin</option>${binOptions(b.c)}</select></label></div>`;
+  }
   if(b.res) h+=`<p class="where">Also the reserve bin for: ${esc(b.res)}</p>`;
-  if(b.p.length){ h+=`<ul>${b.p.map(p=>`<li><span>${esc(p[0])}</span><span>${esc(p[1])}</span></li>`).join("")}</ul>`; }
-  else h+=`<p class="empty">${b.vg==="Spare"?"Kept free for new chilled lines.":"Holds full reserve pallets. Pick from the home bin first, then refill it from here."}</p>`;
+  if(b.p.length){ h+=`<ul>${b.p.map((p,i)=>editMode
+      ?`<li class="edit"><input class="pn" data-i="${i}" data-f="0" value="${esc(p[0])}" aria-label="Product name"><input class="ps" data-i="${i}" data-f="1" value="${esc(p[1])}" aria-label="Pack size"><select class="pm" data-i="${i}" aria-label="Move ${esc(p[0])} to another bin"><option value="">Move to another bin</option>${binOptions(b.c)}</select><button class="btn del" data-del="${i}" aria-label="Delete ${esc(p[0])}">Delete</button></li>`
+      :`<li><span>${esc(p[0])}</span><span>${esc(p[1])}</span></li>`).join("")}</ul>`; }
+  else h+=`<p class="empty">${b.vg==="Spare"?"Kept free for new chilled lines.":"No products in this bin at the moment."}</p>`;
+  if(editMode) h+=`<div class="addp"><input id="aName" placeholder="New product name" aria-label="New product name"><input id="aSize" placeholder="Size" aria-label="New product size"><button class="btn" id="aBtn">Add product</button></div>`;
   d.innerHTML=h; d.scrollTop=0;
+  if(!editMode) return;
+  $("#eName").addEventListener("change",e=>{ const v=e.target.value.trim(); if(!v||v===b.n) return; pushUndo(); addLog(`Renamed ${b.c} from "${b.n}" to "${v}"`); b.n=v; refreshBin(b.c); commit(); showDetail(b); });
+  $("#eCat").addEventListener("change",e=>{ const k=e.target.value; pushUndo(); addLog(`${b.c} changed to ${GROUPS.find(g=>g.k===k).label}`); b.vg=k; b.g=k==="Spare"?"Reserve / spare":k; refreshBin(b.c); commit(); showDetail(b); });
+  $("#eSwap").addEventListener("change",e=>{ const o=byCode[e.target.value]; if(!o) return; pushUndo();
+    ["n","g","vg","p","res"].forEach(f=>{ const t=b[f]; b[f]=o[f]; o[f]=t; });
+    addLog(`Swapped the contents of ${b.c} and ${o.c}`); refreshBin(b.c); refreshBin(o.c); commit(); showDetail(b); });
+  d.querySelectorAll("li.edit select").forEach(sl=>sl.addEventListener("change",()=>{ const to=byCode[sl.value]; if(!to) return; pushUndo();
+    const p=b.p.splice(+sl.dataset.i,1)[0]; to.p.push(p); addLog(`Moved ${p[0]} from ${b.c} to ${to.c}`); commit(); showDetail(b); }));
+  d.querySelectorAll("li.edit input").forEach(inp=>inp.addEventListener("change",()=>{ const i=+inp.dataset.i, f=+inp.dataset.f, v=inp.value.trim(), old=b.p[i][f];
+    if(f===0&&!v){ inp.value=old; return; } if(v===old) return; pushUndo();
+    b.p[i][f]=v||"-"; addLog(f===0?`Renamed product "${old}" to "${b.p[i][0]}" in ${b.c}`:`Changed size of ${b.p[i][0]} in ${b.c} from ${old} to ${b.p[i][1]}`); commit(); }));
+  d.querySelectorAll("[data-del]").forEach(bt=>bt.addEventListener("click",()=>{ const i=+bt.dataset.del, p=b.p[i];
+    if(!confirm(`Delete "${p[0]}" from ${b.c}? You can put it back from Deleted products.`)) return; pushUndo();
+    b.p.splice(i,1); removedList.push({p,from:b.c,t:Date.now()}); addLog(`Deleted ${p[0]} from ${b.c}`); commit(); showDetail(b); }));
+  const addP=()=>{ const n=$("#aName").value.trim(), z=$("#aSize").value.trim(); if(!n){ $("#aName").focus(); return; } pushUndo();
+    b.p.push([n,z||"-"]); addLog(`Added ${n} to ${b.c}`); commit(); showDetail(b); $("#aName")?.focus(); };
+  $("#aBtn").addEventListener("click",addP);
+  ["aName","aSize"].forEach(id=>$("#"+id).addEventListener("keydown",e=>{ if(e.key==="Enter") addP(); }));
 }
 
 /* ---------- search ---------- */
-const PRODUCTS=[]; BINS.forEach(b=>b.p.forEach(p=>PRODUCTS.push({n:p[0],c:b.c})));
 $("#q").addEventListener("input",e=>{
   const q=e.target.value.trim().toLowerCase(); const r=$("#results"); r.innerHTML="";
   if(q.length<2) return;
-  const hits=[];
+  const hits=[]; const PRODUCTS=[]; BINS.forEach(b=>b.p.forEach(p=>PRODUCTS.push({n:p[0],c:b.c})));
   BINS.forEach(b=>{ if(b.c.toLowerCase().includes(q)||b.n.toLowerCase().includes(q)) hits.push({n:b.n,c:b.c}); });
   PRODUCTS.forEach(p=>{ if(p.n.toLowerCase().includes(q)) hits.push(p); });
   if(!hits.length){ r.innerHTML=`<p class="empty">No chilled product or bin matches "${esc(q)}". Try part of the name, like "pak choi".</p>`; return; }
@@ -407,10 +508,10 @@ $("#q").addEventListener("input",e=>{
 const gwrap=$("#groups");
 GROUPS.forEach(g=>{ const bt=document.createElement("button"); bt.className="chip"; bt.setAttribute("aria-pressed","true");
   bt.innerHTML=`<i style="background:${css(g.col)}"></i>${g.label}`;
-  bt.onclick=()=>{ const on=bt.getAttribute("aria-pressed")!=="true"; bt.setAttribute("aria-pressed",String(on)); groupMeshes[g.k].forEach(m=>m.visible=on); if(on&&!namesOn) groupMeshes[g.k].forEach(m=>{ if(nameMeshes.includes(m)) m.visible=false; }); };
+  bt.onclick=()=>{ const on=bt.getAttribute("aria-pressed")!=="true"; bt.setAttribute("aria-pressed",String(on)); groupOn[g.k]=on; refreshVis(); };
   gwrap.appendChild(bt); });
 let namesOn=true;
-$("#namesBtn").onclick=e=>{ namesOn=!namesOn; nameMeshes.forEach(m=>m.visible=namesOn); e.target.textContent=namesOn?"Product names on":"Product names off"; e.target.setAttribute("aria-pressed",String(namesOn)); };
+$("#namesBtn").onclick=e=>{ namesOn=!namesOn; refreshVis(); e.target.textContent=namesOn?"Product names on":"Product names off"; e.target.setAttribute("aria-pressed",String(namesOn)); };
 
 /* ---------- camera controls (orbit, pan, zoom) ---------- */
 const target=new THREE.Vector3(6,0.8,5.5);
@@ -425,10 +526,12 @@ function flyTo(pos,tgt,ms=1100){
   anim={p0:camera.position.clone(),t0:target.clone(),p1:pos,t1:tgt,start:performance.now(),ms};
 }
 const pointers=new Map(); let lastPinch=0, moved=0;
-canvas.addEventListener("pointerdown",e=>{ canvas.setPointerCapture(e.pointerId); pointers.set(e.pointerId,{x:e.clientX,y:e.clientY,b:e.button,shift:e.shiftKey}); moved=0; anim=null; if(tour.on&&tour.playing){ pauseTour(); }});
+canvas.addEventListener("pointerdown",e=>{ canvas.setPointerCapture(e.pointerId); pointers.set(e.pointerId,{x:e.clientX,y:e.clientY,b:e.button,shift:e.shiftKey}); moved=0; anim=null; if(tour.on&&tour.playing){ pauseTour(); }
+  if(editMode&&pointers.size===1&&e.button===0&&!e.shiftKey) startDrag(e); else if(drag) endDrag(); });
 canvas.addEventListener("pointermove",e=>{
   if(!pointers.has(e.pointerId)) return;
   const p=pointers.get(e.pointerId), dx=e.clientX-p.x, dy=e.clientY-p.y; moved+=Math.abs(dx)+Math.abs(dy);
+  if(drag&&drag.pid===e.pointerId){ doDrag(e); p.x=e.clientX; p.y=e.clientY; return; }
   if(pointers.size===1){
     if(p.b===2||p.shift){ pan(dx,dy); } else { sph.th-=dx*0.006; sph.ph-=dy*0.006; }
   } else if(pointers.size===2){
@@ -437,8 +540,8 @@ canvas.addEventListener("pointermove",e=>{
   }
   p.x=e.clientX; p.y=e.clientY; applyCam();
 });
-const endPtr=e=>{ const p=pointers.get(e.pointerId); pointers.delete(e.pointerId); if(pointers.size<2) lastPinch=0;
-  if(p&&moved<6&&e.type==="pointerup") pick(e); };
+const endPtr=e=>{ if(drag&&drag.pid===e.pointerId) endDrag(); const p=pointers.get(e.pointerId); pointers.delete(e.pointerId); if(pointers.size<2) lastPinch=0;
+  if(p&&moved<6&&e.type==="pointerup"){ if(editMode&&downEmpty) deselectObj(); pick(e); } };
 canvas.addEventListener("pointerup",endPtr); canvas.addEventListener("pointercancel",endPtr);
 canvas.addEventListener("contextmenu",e=>e.preventDefault());
 canvas.addEventListener("wheel",e=>{ e.preventDefault(); anim=null; sph.r*=Math.exp(e.deltaY*0.0012); applyCam(); },{passive:false});
@@ -446,34 +549,39 @@ function pan(dx,dy){ const s=sph.r*0.0016; const right=new THREE.Vector3().setFr
   target.addScaledVector(right,-dx*s); target.addScaledVector(fwd,-dy*s); target.x=Math.max(-2,Math.min(14,target.x)); target.z=Math.max(-2,Math.min(13,target.z)); }
 const ray=new THREE.Raycaster(), mv=new THREE.Vector2();
 function pick(e){ const r=canvas.getBoundingClientRect(); mv.x=((e.clientX-r.left)/r.width)*2-1; mv.y=-((e.clientY-r.top)/r.height)*2+1;
-  ray.setFromCamera(mv,camera); const vis=pickables.filter(h=>{ const b=byCode[h.userData.code]; return groupMeshes[b.vg].length===0||groupMeshes[b.vg][0].visible!==false; });
+  ray.setFromCamera(mv,camera); const vis=pickables.filter(h=>groupOn[byCode[h.userData.code].vg]!==false);
   const hit=ray.intersectObjects(vis)[0]; if(hit){ stopTour(); select(hit.object.userData.code,false); } }
 
 /* ---------- views ---------- */
 const VIEWS={
   over:()=>flyTo(new THREE.Vector3(14.5,9.5,15.5),new THREE.Vector3(6,0.6,5.5)),
   top:()=>flyTo(new THREE.Vector3(6.01,19,5.6),new THREE.Vector3(6,0,5.5)),
-  door:()=>flyTo(new THREE.Vector3(10.85,1.65,0.7),new THREE.Vector3(8,1.1,7))
+  door:()=>flyTo(mapMov("door",new THREE.Vector3(10.85,1.65,0.7)),mapMov("door",new THREE.Vector3(8,1.1,7)))
 };
 document.querySelectorAll("[data-view]").forEach(b=>b.onclick=()=>{ stopTour(); VIEWS[b.dataset.view](); });
 
 /* ---------- guided walk of the picking route ---------- */
+function laneStop(){
+  const os=BINS.filter(b=>b.r==="F").map(b=>binObj[b.c]);
+  const c=os.reduce((a,o)=>a.add(centerOf(o)),new THREE.Vector3()).multiplyScalar(1/os.length); c.y=0.8;
+  const pos=c.clone().add(faceOf(os[0]).multiplyScalar(3.6)); pos.y=1.8; return {pos,tgt:c};
+}
 function bayStop(r,bay,text){
   const R=RACKS[r]; let a=0; for(let i=0;i<bay-1;i++) a+=R.widths[i]; a+=R.widths[bay-1]/2;
   const c=R.map(a,1.15,R.depth); const pos=c.clone().add(R.face.clone().multiplyScalar(3.4)); pos.y=1.75;
   const codes=BINS.filter(b=>b.r===r&&b.b===bay).map(b=>b.c);
-  return {pos,tgt:c,text,codes};
+  return {get:()=>({pos:mapMov("rack"+r,pos),tgt:mapMov("rack"+r,c)}),text,codes};
 }
 const STOPS=[
   {pos:new THREE.Vector3(14.5,9.5,15.5),tgt:new THREE.Vector3(6,0.6,5.5),text:["The chilled store","The walk starts at the strip-curtain entrance in the corner and goes round the room: Rack A, Rack B, the floor lanes, then Rack C back to the door."],codes:[]},
-  {pos:new THREE.Vector3(10.85,1.65,0.7),tgt:new THREE.Vector3(9,1.1,7),text:["Entrance","Strip-curtain door on the back wall, past the end of Rack C. The yellow hatched box in front is kept clear. Rack A is ahead on the left."],codes:[]},
+  {get:()=>({pos:mapMov("door",new THREE.Vector3(10.85,1.65,0.7)),tgt:mapMov("door",new THREE.Vector3(9,1.1,7))}),text:["Entrance","Strip-curtain door on the back wall, past the end of Rack C. The yellow hatched box in front is kept clear. Rack A is ahead on the left."],codes:[]},
   bayStop("A",1,["Rack A, bay 01","Pick from the floor: all specialised lines in one spot, Dunbia Beef Belly, and Flanksteak Pickstock. The beam above each holds its replenishment."]),
   bayStop("A",2,["Rack A, bay 02","Pick from the floor: Topside Pickstock, Rumptail Pickstock and one spare pick spot. Replenishment directly above each."]),
   bayStop("B",1,["Rack B, bay 01: flanksteak","Pick ABP and Black Box Flanksteak from the floor. When a floor pallet runs low, bring down the matching pallet from the beam above."]),
   bayStop("B",2,["Rack B, bay 02: topside","Pick ABP and Black Box Topside from the floor. Replenishment for each sits directly above."]),
   bayStop("B",3,["Rack B, bay 03: rumptail","Pick ABP and Black Box Rumptail from the floor. Replenishment for each sits directly above."]),
   bayStop("B",4,["Rack B, bay 04: tofu and chilled","Tofu and fresh noodles on the low shelf. Garlic, ginger, eggs, dairy and kimchi on the shelf above."]),
-  {pos:new THREE.Vector3(4.2,1.8,5.2),tgt:new THREE.Vector3(0.6,0.8,5.0),text:["Floor lanes","F-01 to F-05: sweet potato and broccoli, mushrooms, peppers, Chinese leaf and cabbage, beansprouts. Unchanged."],codes:BINS.filter(b=>b.r==="F").map(b=>b.c)},
+  {get:laneStop,text:["Floor lanes","F-01 to F-05: sweet potato and broccoli, mushrooms, peppers, Chinese leaf and cabbage, beansprouts. Unchanged."],codes:BINS.filter(b=>b.r==="F").map(b=>b.c)},
   bayStop("C",1,["Rack C, bay 01","Produce, unchanged."]),
   bayStop("C",2,["Rack C, bay 02","Produce, unchanged."]),
   bayStop("C",3,["Rack C, bays 03 and 04","Chips and a spare bay, then back to the entrance."]),
@@ -482,7 +590,7 @@ const tour={on:false,playing:false,i:0,timer:null};
 function showStop(i){
   tour.i=(i+STOPS.length)%STOPS.length; const s=STOPS[tour.i];
   $("#tourText").innerHTML=`<b>${esc(s.text[0])}</b>${esc(s.text[1])}`;
-  flyTo(s.pos.clone(),s.tgt.clone(),1500);
+  const v=s.get?s.get():s; flyTo(v.pos.clone(),v.tgt.clone(),1500);
   sel.visible=selFill.visible=false;
   Object.values(binObj).forEach(o=>o.stack.meshes.forEach(m=>m.material.emissive&&m.material.emissive.setHex(0)));
   s.codes.forEach(c=>binObj[c]?.stack.meshes.forEach(m=>m.material.emissive&&m.material.emissive.setHex(0x333333)));
@@ -505,6 +613,154 @@ $("#tNext").onclick=()=>{ pauseTour(); showStop(tour.i+1); };
 $("#tPrev").onclick=()=>{ pauseTour(); showStop(tour.i-1); };
 $("#tExit").onclick=stopTour;
 
+/* ---------- editing: bins, layout, undo, saving ---------- */
+const ORIG={}; BINS.forEach(b=>ORIG[b.c]=JSON.parse(JSON.stringify({n:b.n,g:b.g,vg:b.vg,p:b.p,res:b.res})));
+const distinctProducts=()=>new Set(BINS.flatMap(x=>x.p.map(q=>q[0]))).size, BASE_DISTINCT=distinctProducts();
+const KEY="ok-chilled-map-v1", HINT=$("#hint").textContent;
+let editMode=false, selObj=null, drag=null, downEmpty=false, changeLog=[], removedList=[];
+const undoStack=[];
+const r2=v=>Math.round(v*100)/100;
+const fmt=v=>r2(v).toFixed(2).replace(/\.?0+$/,"");
+
+function refreshVis(){
+  BINS.forEach(b=>{ const o=binObj[b.c]; if(!o) return; const on=groupOn[b.vg]!==false;
+    o.stack.grp.visible=on&&b.vg!=="Spare"; if(o.dash) o.dash.visible=on&&b.vg==="Spare";
+    o.label.visible=on; o.tag.visible=on&&namesOn&&(b.p.length>0||b.vg!=="Spare"); });
+}
+function retex(mesh,lines,opts){
+  const prm=mesh.geometry.parameters, n=textPlane(lines,prm.width,prm.height,opts);
+  if(mesh.material.map) mesh.material.map.dispose(); mesh.material.dispose(); mesh.material=n.material; n.geometry.dispose();
+}
+function refreshBin(code){
+  const b=byCode[code], o=binObj[code]; if(!o) return;
+  const key=b.vg+"|"+b.n; if(o.drawn===key) return;
+  const col=gcol(b.vg), oldVg=(o.drawn||"").split("|")[0];
+  o.stack.meshes.forEach(m=>m.material.color.set(col));
+  if(oldVg!==b.vg) retex(o.label,[{t:b.c,size:.62,weight:700}],{bg:"#ffffff",bar:col});
+  retex(o.tag,[{t:b.n,size:.7,weight:600}],{bg:"#1d2a33",fg:"#fff",center:true});
+  o.drawn=key;
+}
+function stateNow(){
+  const layout={}; MOV_ORDER.forEach(id=>{ const g=MOV[id].g; layout[id]={x:r2(g.position.x),z:r2(g.position.z),r:((Math.round(g.rotation.y/(Math.PI/2))%4)+4)%4}; });
+  const bins={}; BINS.forEach(b=>bins[b.c]={n:b.n,g:b.g,vg:b.vg,p:b.p,res:b.res});
+  return {app:"ok-chilled-map",v:1,saved:new Date().toISOString(),layout,bins,log:changeLog,removed:removedList};
+}
+function applyState(st){
+  const L=st.layout||{}, B=st.bins||{};
+  MOV_ORDER.forEach(id=>{ const m=MOV[id], p=L[id]||m.home;
+    m.g.position.x=Number.isFinite(+p.x)?+p.x:m.home.x; m.g.position.z=Number.isFinite(+p.z)?+p.z:m.home.z;
+    m.g.rotation.y=((+p.r||0)%4)*Math.PI/2; m.g.updateMatrixWorld(true); });
+  BINS.forEach(b=>{ const o=B[b.c]||ORIG[b.c];
+    b.n=String(o.n||ORIG[b.c].n); b.vg=GROUPS.some(g=>g.k===o.vg)?o.vg:ORIG[b.c].vg; b.g=o.g||b.vg;
+    b.p=Array.isArray(o.p)?JSON.parse(JSON.stringify(o.p)):[]; b.res=o.res||""; refreshBin(b.c); });
+  changeLog=Array.isArray(st.log)?st.log.slice():[];
+  removedList=Array.isArray(st.removed)?JSON.parse(JSON.stringify(st.removed)):[];
+  refreshVis();
+  if(selObj) updateObjUI();
+  if(selected&&$("#detail .code")) showDetail(byCode[selected]);
+}
+function save(){ try{ localStorage.setItem(KEY,JSON.stringify(stateNow())); }catch(err){} }
+function loadSaved(){ try{ const t=localStorage.getItem(KEY); return t?JSON.parse(t):null; }catch(err){ return null; } }
+function pushUndo(){ undoStack.push(JSON.stringify(stateNow())); if(undoStack.length>80) undoStack.shift(); }
+function undo(){ const t=undoStack.pop(); if(!t) return; applyState(JSON.parse(t)); save(); updateEditUI(); }
+function addLog(m){ changeLog.push({k:"edit",m,t:Date.now()}); }
+function logMove(id){ const g=MOV[id].g, m=`Moved ${MOV[id].label} to ${fmt(g.position.x)} m from the west wall, ${fmt(g.position.z)} m from the door wall`;
+  const last=changeLog[changeLog.length-1]; if(last&&last.k==="move"&&last.id===id){ last.m=m; last.t=Date.now(); } else changeLog.push({k:"move",id,m,t:Date.now()}); }
+function commit(){ refreshVis(); save(); updateEditUI(); }
+
+/* overlap and wall checks, on each item's bounding box (10 cm inside its edges, so items can stand flush) */
+function footprint(id){ const b=new THREE.Box3().setFromObject(MOV[id].g); b.min.x+=0.1; b.min.z+=0.1; b.max.x-=0.1; b.max.z-=0.1; return b; }
+function clashes(only){
+  const fp={}; MOV_ORDER.forEach(id=>fp[id]=footprint(id)); const out=[];
+  MOV_ORDER.forEach((a,i)=>{ if(only&&a!==only) return;
+    const f=fp[a]; if(f.min.x<0||f.min.z<0||f.max.x>ROOM.w||f.max.z>ROOM.d) out.push(`${MOV[a].label} goes past the walls`);
+    MOV_ORDER.forEach((b,j)=>{ if(a===b||(!only&&j<=i)) return; if(f.intersectsBox(fp[b])) out.push(`${MOV[a].label} overlaps ${MOV[b].label}`); }); });
+  return out;
+}
+function updateEditUI(){
+  $("#undoBtn").disabled=!undoStack.length;
+  $("#logCount").textContent=changeLog.length;
+  $("#log").innerHTML=changeLog.length?changeLog.slice().reverse().map(l=>`<li>${esc(l.m)}</li>`).join(""):`<li>No changes yet.</li>`;
+  $("#nProds").textContent=231+distinctProducts()-BASE_DISTINCT;
+  $("#remCount").textContent=removedList.length;
+  $("#removed").innerHTML=removedList.length?removedList.map((r,i)=>`<li><span>${esc(r.p[0])} <span style="opacity:.75">(was in ${esc(r.from)})</span></span><button class="btn" data-restore="${i}">Put back</button></li>`).join(""):`<li>Nothing deleted.</li>`;
+  $("#removed").querySelectorAll("[data-restore]").forEach(bt=>bt.onclick=()=>{ const r=removedList[+bt.dataset.restore]; if(!r) return; pushUndo();
+    const to=byCode[r.from]; to.p.push(r.p); removedList.splice(+bt.dataset.restore,1); addLog(`Put back ${r.p[0]} in ${r.from}`); commit();
+    if(selected===r.from&&$("#detail .code")) showDetail(to); });
+  const c=editMode?clashes():[]; $("#clashes").textContent=c.length?`Check: ${c.join("; ")}.`:"";
+}
+
+/* selecting and dragging whole items */
+const objBox=new THREE.BoxHelper(undefined,0xe8691f); objBox.visible=false; scene.add(objBox);
+ray.params.Line.threshold=0.04;
+const floorPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0);
+function setRay(e){ const r=canvas.getBoundingClientRect(); mv.x=((e.clientX-r.left)/r.width)*2-1; mv.y=-((e.clientY-r.top)/r.height)*2+1; ray.setFromCamera(mv,camera); }
+function floorPoint(e){ setRay(e); return ray.ray.intersectPlane(floorPlane,new THREE.Vector3()); }
+function movAt(e){ setRay(e); const hit=ray.intersectObjects(MOV_ORDER.map(id=>MOV[id].g),true)[0]; if(!hit) return null;
+  let o=hit.object; while(o&&!o.userData.mov) o=o.parent; return o?o.userData.mov:null; }
+function startDrag(e){
+  const id=movAt(e); downEmpty=!id; if(!id) return;
+  const fp=floorPoint(e); if(!fp) return; stopTour();
+  const g=MOV[id].g; drag={id,pid:e.pointerId,off:fp.sub(g.position),snap:JSON.stringify(stateNow()),moved:false};
+  selectObj(id);
+}
+function doDrag(e){
+  if(moved<5) return; const fp=floorPoint(e); if(!fp) return; const g=MOV[drag.id].g;
+  const x=Math.round((fp.x-drag.off.x)*20)/20, z=Math.round((fp.z-drag.off.z)*20)/20;
+  g.position.x=Math.max(-3,Math.min(ROOM.w+3,x)); g.position.z=Math.max(-3,Math.min(ROOM.d+3,z)); g.updateMatrixWorld(true);
+  drag.moved=true; updateObjUI();
+}
+function endDrag(){ const d=drag; drag=null; if(!d||!d.moved) return; undoStack.push(d.snap); if(undoStack.length>80) undoStack.shift(); logMove(d.id); commit(); }
+function selectObj(id){ selObj=id; $("#objbar").classList.add("on"); updateObjUI(); }
+function deselectObj(){ selObj=null; objBox.visible=false; $("#objbar").classList.remove("on"); }
+function updateObjUI(){
+  if(!selObj) return; const m=MOV[selObj], g=m.g;
+  objBox.setFromObject(g); objBox.visible=true;
+  $("#objName").textContent=m.label;
+  if(document.activeElement!==$("#objX")) $("#objX").value=fmt(g.position.x);
+  if(document.activeElement!==$("#objZ")) $("#objZ").value=fmt(g.position.z);
+  const c=clashes(selObj); $("#objWarn").textContent=c.join(". ")+(c.length?".":"");
+  objBox.material.color.set(c.length?0xc0392b:0xe8691f);
+}
+function setObjPos(x,z){ if(!selObj) return; pushUndo(); const g=MOV[selObj].g; g.position.x=x; g.position.z=z; g.updateMatrixWorld(true); logMove(selObj); updateObjUI(); commit(); }
+function rotateObj(dir){ if(!selObj) return; pushUndo(); const m=MOV[selObj], g=m.g;
+  const q=((Math.round(g.rotation.y/(Math.PI/2))+dir)%4+4)%4; g.rotation.y=q*Math.PI/2; g.updateMatrixWorld(true);
+  addLog(`Turned ${m.label} 90° ${dir>0?"anticlockwise":"clockwise"}`); updateObjUI(); commit(); }
+["objX","objZ"].forEach(id=>$("#"+id).addEventListener("change",()=>{ const x=parseFloat($("#objX").value), z=parseFloat($("#objZ").value); if(Number.isFinite(x)&&Number.isFinite(z)) setObjPos(x,z); else updateObjUI(); }));
+$("#rotL").onclick=()=>rotateObj(1); $("#rotR").onclick=()=>rotateObj(-1); $("#objDone").onclick=deselectObj;
+addEventListener("keydown",e=>{
+  if(!editMode||/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"){ e.preventDefault(); undo(); return; }
+  if(!selObj) return; const g=MOV[selObj].g, st=e.shiftKey?0.5:0.1;
+  const d={ArrowLeft:[-st,0],ArrowRight:[st,0],ArrowUp:[0,-st],ArrowDown:[0,st]}[e.key];
+  if(d){ e.preventDefault(); setObjPos(r2(g.position.x+d[0]),r2(g.position.z+d[1])); }
+  else if(e.key==="r"||e.key==="R"){ rotateObj(e.shiftKey?1:-1); }
+  else if(e.key==="Escape"){ deselectObj(); }
+});
+
+/* panel buttons */
+$("#editBtn").onclick=e=>{ editMode=!editMode; document.body.classList.toggle("editing",editMode);
+  e.target.setAttribute("aria-pressed",String(editMode)); e.target.textContent=editMode?"Edit layout: on":"Edit layout: off";
+  $("#hint").textContent=editMode?"Drag an item to move it. Drag empty floor to turn. Arrow keys nudge, R turns, Ctrl+Z undoes.":HINT;
+  if(editMode){ stopTour(); VIEWS.top(); } else deselectObj();
+  if(selected&&$("#detail .code")) showDetail(byCode[selected]); updateEditUI(); };
+$("#routeBtn").onclick=e=>{ route.visible=!route.visible; e.target.textContent=route.visible?"Route line on":"Route line off"; e.target.setAttribute("aria-pressed",String(route.visible)); };
+$("#undoBtn").onclick=undo;
+$("#resetBtn").onclick=()=>{ if(!confirm("Put every rack, lane and bin back to the original map? You can undo this.")) return; pushUndo(); applyState({}); commit(); };
+function download(name,text,type){ const u=URL.createObjectURL(new Blob([text],{type})); const a=document.createElement("a"); a.href=u; a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(u),2000); }
+const today=()=>new Date().toISOString().slice(0,10);
+$("#saveBtn").onclick=()=>download(`chilled-store-layout-${today()}.json`,JSON.stringify(stateNow(),null,1),"application/json");
+$("#loadBtn").onclick=()=>$("#loadFile").click();
+$("#loadFile").onchange=e=>{ const f=e.target.files[0]; if(!f) return; const rd=new FileReader();
+  rd.onload=()=>{ let st=null; try{ st=JSON.parse(rd.result); }catch(err){}
+    if(!st||typeof st!=="object"||(!st.layout&&!st.bins)){ alert("That file isn't a chilled store layout file."); return; }
+    pushUndo(); applyState(st); addLog(`Opened layout file ${f.name}`); commit(); };
+  rd.readAsText(f); e.target.value=""; };
+$("#csvBtn").onclick=()=>{ const q=v=>`"${String(v).replace(/"/g,'""')}"`; const rows=[["Bin code","Location","Bin name","Category","Product","Size"]];
+  BINS.forEach(b=>{ const cat=b.vg; if(b.p.length) b.p.forEach(p=>rows.push([b.c,where(b),b.n,cat,p[0],p[1]])); else rows.push([b.c,where(b),b.n,cat,"",""]); });
+  removedList.forEach(r=>rows.push(["DELETED","Was in "+r.from,"","",r.p[0],r.p[1]]));
+  download(`chilled-store-bins-${today()}.csv`,"\ufeff"+rows.map(r=>r.map(q).join(",")).join("\r\n"),"text/csv"); };
+
 /* ---------- panel toggle (phones) ---------- */
 $("#toggle").onclick=e=>{ const p=$("#panel"); const c=p.classList.toggle("collapsed"); e.target.textContent=c?"Show":"Hide"; e.target.setAttribute("aria-expanded",String(!c)); resize(); };
 
@@ -514,9 +770,10 @@ addEventListener("resize",resize); resize();
 function frame(t){
   if(anim){ const k=Math.min(1,(t-anim.start)/anim.ms), e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
     const p=anim.p0.clone().lerp(anim.p1,e), g=anim.t0.clone().lerp(anim.t1,e); fromPos(p,g); applyCam(); if(k>=1) anim=null; }
-  if(sel.visible){ selFill.material.opacity=0.12+0.1*Math.sin(t/260); }
+  if(sel.visible){ placeSel(); selFill.material.opacity=0.12+0.1*Math.sin(t/260); }
   renderer.render(scene,camera); requestAnimationFrame(frame);
 }
+{ const saved=loadSaved(); if(saved) applyState(saved); refreshVis(); updateEditUI(); }
 $("#loading").remove();
 VIEWS.over(); requestAnimationFrame(frame);
 })();
