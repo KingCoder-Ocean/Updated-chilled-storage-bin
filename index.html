@@ -101,6 +101,8 @@ body.editing #editTools{display:block}
 #objWarn{margin:6px 0 0;font-size:13px;color:var(--warn)}
 #objWarn:empty{display:none}
 body.editing #c{cursor:crosshair}
+#liftRow{display:contents}
+#liftRow[hidden]{display:none}
 @media (max-width:760px){
   #app{grid-template-columns:1fr;grid-template-rows:1fr auto}
   #panel{order:2;border-right:0;border-top:1px solid var(--line);max-height:46vh}
@@ -138,7 +140,18 @@ body.editing #c{cursor:crosshair}
       <h2>Edit the map</h2>
       <button class="btn toggle" id="editBtn" aria-pressed="false">Edit layout: off</button>
       <div id="editTools">
-        <p class="sub" style="margin-top:8px">Drag a rack, floor lane, cage or door to move it, or click it to rotate it and type an exact position. Click a bin to rename it, change its category, swap it with another bin, or edit, move, add and delete its products. Deleted products can be put back. Changes save in this browser; download the layout file to share them.</p>
+        <p class="sub" style="margin:10px 0 4px">Pick up:</p>
+        <div class="row" role="group" aria-label="What a drag picks up" style="margin-top:0">
+          <button class="btn toggle" data-mode="box" aria-pressed="true">One box</button>
+          <button class="btn toggle" data-mode="bay" aria-pressed="false">One bay</button>
+          <button class="btn toggle" data-mode="rack" aria-pressed="false">Whole rack</button>
+        </div>
+        <div class="row">
+          <button class="btn" id="emptyBtn">Empty the room</button>
+          <button class="btn" id="wideBtn">See room and parking</button>
+        </div>
+        <p class="sub" id="parkNote" style="margin-top:6px"></p>
+        <p class="sub" style="margin-top:8px">Choose what a drag picks up, then drag it anywhere. "Empty the room" moves everything to a parking area next to the room so you can start from a bare floor and bring pieces in one at a time. Click an item to turn it or type an exact position. Click a bin to rename it, change its category, swap it with another bin, or edit, move, add and delete its products. Deleted products can be put back. Changes save in this browser; download the layout file to share them.</p>
         <div class="row">
           <button class="btn" id="undoBtn" disabled>Undo</button>
           <button class="btn" id="resetBtn">Reset</button>
@@ -173,6 +186,7 @@ body.editing #c{cursor:crosshair}
       <div class="row">
         <label>From west wall (m)<input type="number" id="objX" step="0.1"></label>
         <label>From door wall (m)<input type="number" id="objZ" step="0.1"></label>
+        <span id="liftRow" hidden><label>Height off floor (m)<input type="number" id="objY" step="0.1" min="0"></label><button class="btn" id="toFloor">Put on floor</button></span>
         <button class="btn" id="rotL" aria-label="Rotate 90 degrees anticlockwise">&#8634; 90&deg;</button>
         <button class="btn" id="rotR" aria-label="Rotate 90 degrees clockwise">&#8635; 90&deg;</button>
         <button class="btn primary" id="objDone">Done</button>
@@ -268,15 +282,16 @@ function orient(mesh,face){ mesh.lookAt(mesh.position.clone().add(face)); }
 
 /* ---------- movable items: everything one capture() call adds to the scene becomes one group, pivoting on its centre ---------- */
 const MOV={}; const MOV_ORDER=[];
-function capture(id,label,fn){
+function capture(id,label,fn,meta){
   const before=new Set(scene.children); fn();
   const added=scene.children.filter(c=>!before.has(c));
   const bb=new THREE.Box3(); added.forEach(o=>bb.expandByObject(o));
   const cx=Math.round((bb.min.x+bb.max.x)*50)/100, cz=Math.round((bb.min.z+bb.max.z)*50)/100;
   const g=new THREE.Group(); g.position.set(cx,0,cz);
   added.forEach(o=>{ scene.remove(o); o.position.x-=cx; o.position.z-=cz; g.add(o); });
+  added.forEach(o=>{ if(o.userData.mov) MOV[o.userData.mov].parent=id; });
   g.userData.mov=id; scene.add(g); g.updateMatrixWorld(true);
-  MOV[id]={g,label,home:{x:cx,z:cz,r:0}}; MOV_ORDER.push(id); return g;
+  MOV[id]=Object.assign({g,label,kind:"other",home:{x:cx,z:cz,r:0}},meta||{}); MOV_ORDER.push(id); return g;
 }
 /* a point given in the original map, carried along with wherever that item has been moved */
 function mapMov(id,v){ const m=MOV[id]; if(!m) return v.clone(); m.g.updateMatrixWorld(true); return m.g.localToWorld(new THREE.Vector3(v.x-m.home.x,v.y,v.z-m.home.z)); }
@@ -306,10 +321,10 @@ sDoor.position.set((DOOR.x0+DOOR.x1)/2,3.0,0.05); orient(sDoor,new THREE.Vector3
   scene.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts),yel));
   const t=textPlane([{t:"Keep clear",size:.7}],1.2,0.3,{bg:"#f2c200",fg:"#1d2a33",center:true}); t.rotation.x=-Math.PI/2; t.position.set(cx,0.02,1.85); scene.add(t);
   const ar=new THREE.Mesh(new THREE.ConeGeometry(0.22,0.5,3),M(0xf2c200)); ar.rotation.x=Math.PI/2; ar.position.set(cx,0.03,2.45); scene.add(ar); }
-});
+},{kind:"wall"});
 // STOP door south wall (unchanged)
 capture("stop","STOP door",()=>{ box(1.3,2.3,0.05,M(0xdfe3e5),10.35,1.15,10.97);
-const stop=textPlane([{t:"STOP door",size:.7}],0.9,0.3,{bg:"#c0392b",fg:"#fff",center:true}); stop.position.set(10.35,1.6,10.93); orient(stop,new THREE.Vector3(0,0,-1)); scene.add(stop); });
+const stop=textPlane([{t:"STOP door",size:.7}],0.9,0.3,{bg:"#c0392b",fg:"#fff",center:true}); stop.position.set(10.35,1.6,10.93); orient(stop,new THREE.Vector3(0,0,-1)); scene.add(stop); },{kind:"wall"});
 // cages
 function cage(x,z,w,d,label,face){ const g=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(w,1.6,d)),new THREE.LineBasicMaterial({color:0x8a8f92})); g.position.set(x,0.8,z); scene.add(g);
   const t=textPlane([{t:label,size:.7}],w*0.95,0.26,{bg:"#ffffff",center:true}); t.position.set(x+face.x*(w/2+0.01),1.3,z+face.z*(d/2+0.01)); orient(t,face); scene.add(t); }
@@ -336,7 +351,8 @@ function buildRack(key){
   const R=RACKS[key]; let start=0;
   R.widths.forEach((w,bi)=>{
     const lv=R.levels[bi]; const H=Math.min(lv[lv.length-1]+1.25,3.5);
-    const bayNo=bi+1;
+    const bayNo=bi+1, bayId="bay"+key+bayNo;
+    capture(bayId,`Rack ${key}, bay ${String(bayNo).padStart(2,"0")}`,()=>{
     // uprights at both ends
     [start,start+w].forEach(a=>[0.06,R.depth-0.06].forEach(o=>{ const p=R.map(a,H/2,o); box(0.08,H,0.08,matSteel,p.x,p.y,p.z); }));
     // beams and decking
@@ -358,12 +374,13 @@ function buildRack(key){
       const clear=Math.min(nextH-h-0.2, level===lv.length?1.15:2);
       binsHere.forEach((b,si)=>{
         const a0=start+si*sw, ac=a0+sw/2;
-        makeBin(R,key,b,ac,sw,h,clear);
+        capture("bin:"+b.c,`Box ${b.c}`,()=>makeBin(R,key,b,ac,sw,h,clear),{kind:"bin",code:b.c});
       });
     });
+    },{kind:"bay",rack:key});
     start+=w;
   });
-  rackSign(R,key);
+  capture("sign"+key,`${R.name} sign`,()=>rackSign(R,key),{kind:"sign",rack:key,noClash:true});
 }
 function goodsH(clear){ return Math.max(0.25,Math.min(clear-0.14,1.35)); }
 function stackOf(R,b,ac,sw,h,clear,col){
@@ -408,7 +425,7 @@ function makeBin(R,key,b,ac,sw,h,clear){
   const tag=nameTag(R.map(ac,ty,R.depth+0.06),R.face,b.n,Math.min(sw-0.04,b.t==="Shelf slot"?0.52:1.25));
   binObj[b.c]={hit:hb,stack:st,label:lab,tag,dash,R,drawn:b.vg+"|"+b.n};
 }
-Object.keys(RACKS).forEach(k=>capture("rack"+k,RACKS[k].name,()=>buildRack(k)));
+Object.keys(RACKS).forEach(buildRack);
 
 // floor lanes on the west wall
 const laneR={map:(a,y,o)=>new THREE.Vector3(0.15+o,y,8.6-a),face:new THREE.Vector3(1,0,0),depth:1.25};
@@ -425,9 +442,9 @@ BINS.filter(b=>b.r==="F").forEach(b=>capture("lane"+b.b,"Floor lane F-"+String(b
   const lab=textPlane([{t:b.c,size:.62,weight:700}],0.6,0.13,{bg:"#ffffff",bar:col}); lab.position.set(0.06,1.55,(z0+z1)/2); orient(lab,laneR.face); scene.add(lab);
   const tag=nameTag(new THREE.Vector3(0.06,1.78,(z0+z1)/2),laneR.face,b.n,Math.min(len-0.1,1.3));
   binObj[b.c]={hit:hb,stack:{grp,meshes:grp.children.filter(c=>c.isMesh)},label:lab,tag,R:laneR,drawn:b.vg+"|"+b.n};
-}));
+},{kind:"lane"}));
 capture("fsign","Floor lanes sign",()=>{ const fSign=textPlane([{t:"Floor lanes F: produce",size:.75}],2.6,0.42,{bg:"#1f4e5a",fg:"#fff",center:true});
-fSign.position.set(0.08,2.45,5.0); orient(fSign,new THREE.Vector3(1,0,0)); scene.add(fSign); });
+fSign.position.set(0.08,2.45,5.0); orient(fSign,new THREE.Vector3(1,0,0)); scene.add(fSign); },{kind:"sign",noClash:true});
 
 // picking route line
 const routePts=[[10.85,1.7],[10.2,2.6],[10.2,9.0],[2.0,9.0],[2.0,2.1],[9.6,2.1],[10.85,1.7]].map(([x,z])=>new THREE.Vector3(x,0.02,z));
@@ -552,7 +569,7 @@ canvas.addEventListener("pointerup",endPtr); canvas.addEventListener("pointercan
 canvas.addEventListener("contextmenu",e=>e.preventDefault());
 canvas.addEventListener("wheel",e=>{ e.preventDefault(); anim=null; sph.r*=Math.exp(e.deltaY*0.0012); applyCam(); },{passive:false});
 function pan(dx,dy){ const s=sph.r*0.0016; const right=new THREE.Vector3().setFromMatrixColumn(camera.matrix,0); const fwd=new THREE.Vector3(Math.sin(sph.th),0,Math.cos(sph.th));
-  target.addScaledVector(right,-dx*s); target.addScaledVector(fwd,-dy*s); target.x=Math.max(-2,Math.min(14,target.x)); target.z=Math.max(-2,Math.min(13,target.z)); }
+  target.addScaledVector(right,-dx*s); target.addScaledVector(fwd,-dy*s); target.x=Math.max(-2,Math.min(14,target.x)); target.z=Math.max(-2,Math.min(26,target.z)); }
 const ray=new THREE.Raycaster(), mv=new THREE.Vector2();
 function pick(e){ const r=canvas.getBoundingClientRect(); mv.x=((e.clientX-r.left)/r.width)*2-1; mv.y=-((e.clientY-r.top)/r.height)*2+1;
   ray.setFromCamera(mv,camera); const vis=pickables.filter(h=>groupOn[byCode[h.userData.code].vg]!==false);
@@ -576,7 +593,7 @@ function bayStop(r,bay,text){
   const R=RACKS[r]; let a=0; for(let i=0;i<bay-1;i++) a+=R.widths[i]; a+=R.widths[bay-1]/2;
   const c=R.map(a,1.15,R.depth); const pos=c.clone().add(R.face.clone().multiplyScalar(3.4)); pos.y=1.75;
   const codes=BINS.filter(b=>b.r===r&&b.b===bay).map(b=>b.c);
-  return {get:()=>({pos:mapMov("rack"+r,pos),tgt:mapMov("rack"+r,c)}),text,codes};
+  return {get:()=>({pos:mapMov("bay"+r+bay,pos),tgt:mapMov("bay"+r+bay,c)}),text,codes};
 }
 const STOPS=[
   {pos:new THREE.Vector3(14.5,9.5,15.5),tgt:new THREE.Vector3(6,0.6,5.5),text:["The chilled store","The walk starts at the strip-curtain entrance in the corner and goes round the room: Rack A, Rack B, the floor lanes, then Rack C back to the door."],codes:[]},
@@ -647,16 +664,26 @@ function refreshBin(code){
   retex(o.tag,[{t:b.n,size:.7,weight:600}],{bg:"#1d2a33",fg:"#fff",center:true});
   o.drawn=key;
 }
+const quarter=v=>((Math.round((+v||0))%4)+4)%4;
+const qOf=g=>quarter(g.rotation.y/(Math.PI/2));
 function stateNow(){
-  const layout={}; MOV_ORDER.forEach(id=>{ const g=MOV[id].g; layout[id]={x:r2(g.position.x),z:r2(g.position.z),r:((Math.round(g.rotation.y/(Math.PI/2))%4)+4)%4}; });
+  const layout={};
+  MOV_ORDER.forEach(id=>{ const m=MOV[id], g=m.g; const top=g.parent===scene;
+    if(m.kind==="bin"&&!top) return;
+    layout[id]={x:r2(g.position.x),z:r2(g.position.z),r:qOf(g)}; if(m.kind==="bin"){ layout[id].y=r2(g.position.y); layout[id].free=true; } });
   const bins={}; BINS.forEach(b=>bins[b.c]={n:b.n,g:b.g,vg:b.vg,p:b.p,res:b.res});
-  return {app:"ok-chilled-map",v:1,base:BASE_ID,saved:new Date().toISOString(),layout,bins,log:changeLog,removed:removedList};
+  return {app:"ok-chilled-map",v:2,base:BASE_ID,saved:new Date().toISOString(),layout,bins,log:changeLog,removed:removedList};
 }
 function applyState(st){
-  const L=st.layout||{}, B=st.bins||{};
-  MOV_ORDER.forEach(id=>{ const m=MOV[id], p=L[id]||m.home;
-    m.g.position.x=Number.isFinite(+p.x)?+p.x:m.home.x; m.g.position.z=Number.isFinite(+p.z)?+p.z:m.home.z;
-    m.g.rotation.y=((+p.r||0)%4)*Math.PI/2; m.g.updateMatrixWorld(true); });
+  const L=st.layout||{}, B=st.bins||{}, num=(v,d)=>Number.isFinite(+v)&&v!==null&&v!==""?+v:d;
+  // boxes back into their own bay first, then whole items, then boxes that were taken out on their own
+  MOV_ORDER.forEach(id=>{ const m=MOV[id]; if(!m.parent) return; const P=MOV[m.parent];
+    P.g.add(m.g); m.g.position.set(m.home.x-P.home.x,0,m.home.z-P.home.z); m.g.rotation.y=0; });
+  MOV_ORDER.forEach(id=>{ const m=MOV[id]; if(m.parent) return; const p=L[id]||m.home;
+    m.g.position.set(num(p.x,m.home.x),0,num(p.z,m.home.z)); m.g.rotation.y=quarter(p.r)*Math.PI/2; });
+  MOV_ORDER.forEach(id=>{ const m=MOV[id], p=L[id]; if(!m.parent||!p||!p.free) return;
+    scene.add(m.g); m.g.position.set(num(p.x,m.home.x),num(p.y,0),num(p.z,m.home.z)); m.g.rotation.y=quarter(p.r)*Math.PI/2; });
+  scene.updateMatrixWorld(true);
   BINS.forEach(b=>{ const o=B[b.c]||ORIG[b.c];
     b.n=String(o.n||ORIG[b.c].n); b.vg=GROUPS.some(g=>g.k===o.vg)?o.vg:ORIG[b.c].vg; b.g=o.g||b.vg;
     b.p=Array.isArray(o.p)?JSON.parse(JSON.stringify(o.p)):[]; b.res=o.res||""; refreshBin(b.c); });
@@ -671,17 +698,23 @@ function loadSaved(){ try{ const t=localStorage.getItem(KEY); return t?JSON.pars
 function pushUndo(){ undoStack.push(JSON.stringify(stateNow())); if(undoStack.length>80) undoStack.shift(); }
 function undo(){ const t=undoStack.pop(); if(!t) return; applyState(JSON.parse(t)); save(); updateEditUI(); }
 function addLog(m){ changeLog.push({k:"edit",m,t:Date.now()}); }
-function logMove(id){ const g=MOV[id].g, m=`Moved ${MOV[id].label} to ${fmt(g.position.x)} m from the west wall, ${fmt(g.position.z)} m from the door wall`;
+function logMove(set){ const id=set.join(","), c=setBox(set).getCenter(new THREE.Vector3());
+  const m=`Moved ${setLabel(set)} to ${fmt(c.x)} m from the west wall, ${fmt(c.z)} m from the door wall`;
   const last=changeLog[changeLog.length-1]; if(last&&last.k==="move"&&last.id===id){ last.m=m; last.t=Date.now(); } else changeLog.push({k:"move",id,m,t:Date.now()}); }
 function commit(){ refreshVis(); save(); updateEditUI(); }
 
-/* overlap and wall checks, on each item's bounding box (10 cm inside its edges, so items can stand flush) */
+/* overlap and wall checks on items standing on their own (10 cm inside their edges, so items can stand flush).
+   Anything wholly outside the room is in the parking area and is not checked. */
+const ROOMBOX=new THREE.Box3(new THREE.Vector3(0,-1,0),new THREE.Vector3(ROOM.w,20,ROOM.d));
+const topItems=()=>MOV_ORDER.filter(id=>MOV[id].g.parent===scene);
 function footprint(id){ const b=new THREE.Box3().setFromObject(MOV[id].g); b.min.x+=0.1; b.min.z+=0.1; b.max.x-=0.1; b.max.z-=0.1; return b; }
+const parked=b=>!b.intersectsBox(ROOMBOX);
 function clashes(only){
-  const fp={}; MOV_ORDER.forEach(id=>fp[id]=footprint(id)); const out=[];
-  MOV_ORDER.forEach((a,i)=>{ if(only&&a!==only) return;
-    const f=fp[a]; if(f.min.x<0||f.min.z<0||f.max.x>ROOM.w||f.max.z>ROOM.d) out.push(`${MOV[a].label} goes past the walls`);
-    MOV_ORDER.forEach((b,j)=>{ if(a===b||(!only&&j<=i)) return; if(f.intersectsBox(fp[b])) out.push(`${MOV[a].label} overlaps ${MOV[b].label}`); }); });
+  const ids=topItems().filter(id=>!MOV[id].noClash), fp={}; ids.forEach(id=>fp[id]=footprint(id));
+  const inRoom=ids.filter(id=>!parked(fp[id])), out=[];
+  inRoom.forEach((a,i)=>{ if(only&&!only.includes(a)) return; const f=fp[a];
+    if(f.min.x<0||f.min.z<0||f.max.x>ROOM.w||f.max.z>ROOM.d) out.push(`${MOV[a].label} goes past the walls`);
+    inRoom.forEach((b,j)=>{ if(a===b||(only?only.includes(b)&&j<=i:j<=i)) return; if(f.intersectsBox(fp[b])) out.push(`${MOV[a].label} overlaps ${MOV[b].label}`); }); });
   return out;
 }
 function updateEditUI(){
@@ -695,60 +728,108 @@ function updateEditUI(){
     const to=byCode[r.from]; to.p.push(r.p); removedList.splice(+bt.dataset.restore,1); addLog(`Put back ${r.p[0]} in ${r.from}`); commit();
     if(selected===r.from&&$("#detail .code")) showDetail(to); });
   const c=editMode?clashes():[]; $("#clashes").textContent=c.length?`Check: ${c.join("; ")}.`:"";
+  const n=topItems().filter(id=>MOV[id].kind!=="wall"&&!MOV[id].noClash&&parked(footprint(id))).length;
+  $("#parkNote").textContent=n?`${n} item${n>1?"s":""} waiting in the parking area below the room.`:"";
 }
 
-/* selecting and dragging whole items */
-const objBox=new THREE.BoxHelper(undefined,0xe8691f); objBox.visible=false; scene.add(objBox);
+/* selecting and dragging: a whole rack, one bay, or one box */
+let pickMode="box";
+const selBox=new THREE.Box3(), objBox=new THREE.Box3Helper(selBox,0xe8691f); objBox.visible=false; scene.add(objBox);
 ray.params.Line.threshold=0.04;
 const floorPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0);
+// parking area beyond the south wall, shown while editing
+const park=new THREE.Mesh(new THREE.PlaneGeometry(ROOM.w+1,ROOM.d+1),new THREE.MeshBasicMaterial({color:0x8b979e,transparent:true,opacity:0.18,depthWrite:false}));
+park.rotation.x=-Math.PI/2; park.position.set(ROOM.w/2,0.005,ROOM.d*1.5+2); park.visible=false; scene.add(park);
+const parkLab=textPlane([{t:"Parking area: drag pieces back into the room",size:.62}],6.5,0.5,{bg:"#1f4e5a",fg:"#fff",center:true});
+parkLab.rotation.x=-Math.PI/2; parkLab.position.set(ROOM.w/2,0.02,ROOM.d+1.15); parkLab.visible=false; scene.add(parkLab);
 function setRay(e){ const r=canvas.getBoundingClientRect(); mv.x=((e.clientX-r.left)/r.width)*2-1; mv.y=-((e.clientY-r.top)/r.height)*2+1; ray.setFromCamera(mv,camera); }
 function floorPoint(e){ setRay(e); return ray.ray.intersectPlane(floorPlane,new THREE.Vector3()); }
-function movAt(e){ setRay(e); const hit=ray.intersectObjects(MOV_ORDER.map(id=>MOV[id].g),true)[0]; if(!hit) return null;
-  let o=hit.object; while(o&&!o.userData.mov) o=o.parent; return o?o.userData.mov:null; }
+function setBox(set){ selBox.makeEmpty(); const b=new THREE.Box3(); set.forEach(id=>{ b.setFromObject(MOV[id].g); selBox.union(b); }); return selBox.clone(); }
+function setLabel(set){ if(set.length===1) return MOV[set[0]].label; const r=MOV[set[0]].rack; return r?RACKS[r].name:"Selected items"; }
+function pickSet(obj){
+  const chain=[]; for(let o=obj;o&&o!==scene;o=o.parent) if(o.userData.mov) chain.push(o.userData.mov);
+  if(!chain.length) return null;
+  const inner=chain[0], outer=chain[chain.length-1];
+  if(pickMode==="box") return [inner];
+  if(pickMode==="bay") return [outer];
+  const m=MOV[outer];
+  if(m.rack&&(m.kind==="bay"||m.kind==="sign")) return topItems().filter(id=>MOV[id].rack===m.rack&&(MOV[id].kind==="bay"||MOV[id].kind==="sign"));
+  return [outer];
+}
+function setAt(e){ setRay(e); const hit=ray.intersectObjects(topItems().map(id=>MOV[id].g),true)[0]; return hit?pickSet(hit.object):null; }
+// a box still sitting in its bay is lifted out (keeping where it is) the first time it is moved on its own
+function freeUp(set){ set.forEach(id=>{ const g=MOV[id].g; if(g.parent!==scene){ scene.attach(g); g.updateMatrixWorld(true); } }); }
 function startDrag(e){
-  const id=movAt(e); downEmpty=!id; if(!id) return;
+  const set=setAt(e); downEmpty=!set; if(!set) return;
   const fp=floorPoint(e); if(!fp) return; stopTour();
-  const g=MOV[id].g; drag={id,pid:e.pointerId,off:fp.sub(g.position),snap:JSON.stringify(stateNow()),moved:false};
-  selectObj(id);
+  drag={set,pid:e.pointerId,fp,start:null,snap:JSON.stringify(stateNow()),moved:false};
+  selectObj(set);
 }
 function doDrag(e){
-  if(moved<5) return; const fp=floorPoint(e); if(!fp) return; const g=MOV[drag.id].g;
-  const x=Math.round((fp.x-drag.off.x)*20)/20, z=Math.round((fp.z-drag.off.z)*20)/20;
-  g.position.x=Math.max(-3,Math.min(ROOM.w+3,x)); g.position.z=Math.max(-3,Math.min(ROOM.d+3,z)); g.updateMatrixWorld(true);
+  if(moved<5) return; const fp=floorPoint(e); if(!fp) return;
+  if(!drag.start){ freeUp(drag.set); drag.start=drag.set.map(id=>MOV[id].g.position.clone()); }
+  const lim=(v,a,b)=>Math.max(a,Math.min(b,v));
+  const dx=Math.round((fp.x-drag.fp.x)*20)/20, dz=Math.round((fp.z-drag.fp.z)*20)/20;
+  drag.set.forEach((id,i)=>{ const g=MOV[id].g, s0=drag.start[i];
+    g.position.x=lim(s0.x+dx,-4,ROOM.w+4); g.position.z=lim(s0.z+dz,-4,ROOM.d*2+4); g.updateMatrixWorld(true); });
   drag.moved=true; updateObjUI();
 }
-function endDrag(){ const d=drag; drag=null; if(!d||!d.moved) return; undoStack.push(d.snap); if(undoStack.length>80) undoStack.shift(); logMove(d.id); commit(); }
-function selectObj(id){ selObj=id; $("#objbar").classList.add("on"); updateObjUI(); }
+function endDrag(){ const d=drag; drag=null; if(!d||!d.moved) return; undoStack.push(d.snap); if(undoStack.length>80) undoStack.shift(); logMove(d.set); commit(); }
+function selectObj(set){ selObj=set; $("#objbar").classList.add("on"); updateObjUI(); }
 function deselectObj(){ selObj=null; objBox.visible=false; $("#objbar").classList.remove("on"); }
 function updateObjUI(){
-  if(!selObj) return; const m=MOV[selObj], g=m.g;
-  objBox.setFromObject(g); objBox.visible=true;
-  $("#objName").textContent=m.label;
-  if(document.activeElement!==$("#objX")) $("#objX").value=fmt(g.position.x);
-  if(document.activeElement!==$("#objZ")) $("#objZ").value=fmt(g.position.z);
-  const c=clashes(selObj); $("#objWarn").textContent=c.join(". ")+(c.length?".":"");
-  objBox.material.color.set(c.length?0xc0392b:0xe8691f);
+  if(!selObj) return; const b=setBox(selObj), c=b.getCenter(new THREE.Vector3());
+  objBox.visible=true; objBox.updateMatrixWorld(true);
+  $("#objName").textContent=setLabel(selObj);
+  if(document.activeElement!==$("#objX")) $("#objX").value=fmt(c.x);
+  if(document.activeElement!==$("#objZ")) $("#objZ").value=fmt(c.z);
+  const one=selObj.length===1&&MOV[selObj[0]].kind==="bin";
+  $("#liftRow").hidden=!one;
+  if(one&&document.activeElement!==$("#objY")) $("#objY").value=fmt(boxBottom(selObj[0]));
+  const cl=clashes(selObj.filter(id=>MOV[id].g.parent===scene)); $("#objWarn").textContent=cl.join(". ")+(cl.length?".":"");
+  objBox.material.color.set(cl.length?0xc0392b:0xe8691f);
 }
-function setObjPos(x,z){ if(!selObj) return; pushUndo(); const g=MOV[selObj].g; g.position.x=x; g.position.z=z; g.updateMatrixWorld(true); logMove(selObj); updateObjUI(); commit(); }
-function rotateObj(dir){ if(!selObj) return; pushUndo(); const m=MOV[selObj], g=m.g;
-  const q=((Math.round(g.rotation.y/(Math.PI/2))+dir)%4+4)%4; g.rotation.y=q*Math.PI/2; g.updateMatrixWorld(true);
-  addLog(`Turned ${m.label} 90° ${dir>0?"anticlockwise":"clockwise"}`); updateObjUI(); commit(); }
+function moveSet(dx,dz,dy){ if(!selObj) return; pushUndo(); freeUp(selObj);
+  selObj.forEach(id=>{ const g=MOV[id].g; g.position.x=r2(g.position.x+dx); g.position.z=r2(g.position.z+dz); if(dy) g.position.y=r2(g.position.y+dy); g.updateMatrixWorld(true); });
+  logMove(selObj); updateObjUI(); commit(); }
+function setObjPos(x,z){ if(!selObj) return; const c=setBox(selObj).getCenter(new THREE.Vector3()); moveSet(x-c.x,z-c.z,0); }
+function rotateObj(dir){ if(!selObj) return; pushUndo(); freeUp(selObj);
+  const c=setBox(selObj).getCenter(new THREE.Vector3()), up=new THREE.Vector3(0,1,0);
+  selObj.forEach(id=>{ const g=MOV[id].g, v=g.position.clone().sub(c); v.y=0; v.applyAxisAngle(up,dir*Math.PI/2);
+    g.position.x=r2(c.x+v.x); g.position.z=r2(c.z+v.z); g.rotation.y=quarter(qOf(g)+dir)*Math.PI/2; g.updateMatrixWorld(true); });
+  addLog(`Turned ${setLabel(selObj)} 90° ${dir>0?"anticlockwise":"clockwise"}`); updateObjUI(); commit(); }
 ["objX","objZ"].forEach(id=>$("#"+id).addEventListener("change",()=>{ const x=parseFloat($("#objX").value), z=parseFloat($("#objZ").value); if(Number.isFinite(x)&&Number.isFinite(z)) setObjPos(x,z); else updateObjUI(); }));
+// height of a box = where the bottom of its pallet or goods sits above the floor
+function boxBottom(id){ const o=binObj[MOV[id].code]; return Math.max(0,new THREE.Box3().setFromObject(o?o.stack.grp:MOV[id].g).min.y); }
+$("#objY").addEventListener("change",()=>{ const y=parseFloat($("#objY").value); if(!Number.isFinite(y)||!selObj) return updateObjUI();
+  moveSet(0,0,Math.max(0,Math.min(4,y))-boxBottom(selObj[0])); });
+$("#toFloor").onclick=()=>{ if(selObj) moveSet(0,0,-boxBottom(selObj[0])); };
 $("#rotL").onclick=()=>rotateObj(1); $("#rotR").onclick=()=>rotateObj(-1); $("#objDone").onclick=deselectObj;
+document.querySelectorAll("[data-mode]").forEach(bt=>bt.onclick=()=>{ pickMode=bt.dataset.mode;
+  document.querySelectorAll("[data-mode]").forEach(x=>x.setAttribute("aria-pressed",String(x===bt))); deselectObj(); });
 addEventListener("keydown",e=>{
   if(!editMode||/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"){ e.preventDefault(); undo(); return; }
-  if(!selObj) return; const g=MOV[selObj].g, st=e.shiftKey?0.5:0.1;
+  if(!selObj) return; const st=e.shiftKey?0.5:0.1;
   const d={ArrowLeft:[-st,0],ArrowRight:[st,0],ArrowUp:[0,-st],ArrowDown:[0,st]}[e.key];
-  if(d){ e.preventDefault(); setObjPos(r2(g.position.x+d[0]),r2(g.position.z+d[1])); }
+  if(d){ e.preventDefault(); moveSet(d[0],d[1],0); }
   else if(e.key==="r"||e.key==="R"){ rotateObj(e.shiftKey?1:-1); }
   else if(e.key==="Escape"){ deselectObj(); }
 });
+$("#emptyBtn").onclick=()=>{
+  const ids=topItems().filter(id=>MOV[id].kind!=="wall"&&!parked(footprint(id)));
+  if(!ids.length) return; pushUndo();
+  ids.forEach(id=>{ const g=MOV[id].g; g.position.z+=ROOM.d+2; g.updateMatrixWorld(true); });
+  deselectObj(); addLog("Moved everything out of the room into the parking area"); commit();
+  flyTo(new THREE.Vector3(ROOM.w/2+0.01,34,ROOM.d+0.6),new THREE.Vector3(ROOM.w/2,0,ROOM.d+0.5));
+};
+$("#wideBtn").onclick=()=>flyTo(new THREE.Vector3(ROOM.w/2+0.01,34,ROOM.d+0.6),new THREE.Vector3(ROOM.w/2,0,ROOM.d+0.5));
 
 /* panel buttons */
 $("#editBtn").onclick=e=>{ editMode=!editMode; document.body.classList.toggle("editing",editMode);
   e.target.setAttribute("aria-pressed",String(editMode)); e.target.textContent=editMode?"Edit layout: on":"Edit layout: off";
   $("#hint").textContent=editMode?"Drag an item to move it. Drag empty floor to turn. Arrow keys nudge, R turns, Ctrl+Z undoes.":HINT;
+  park.visible=parkLab.visible=editMode;
   if(editMode){ stopTour(); VIEWS.top(); } else deselectObj();
   if(selected&&$("#detail .code")) showDetail(byCode[selected]); updateEditUI(); };
 $("#routeBtn").onclick=e=>{ route.visible=!route.visible; e.target.textContent=route.visible?"Route line on":"Route line off"; e.target.setAttribute("aria-pressed",String(route.visible)); };
